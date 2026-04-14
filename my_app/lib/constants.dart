@@ -5,9 +5,6 @@ import 'package:flutter/material.dart';
 // const String kElevenLabsVoiceId = 'pNInz6obpgDQGcFmaJgB'; // Adam (free tier)
 // const String kElevenLabsModelId = 'eleven_multilingual_v2';
 
-// const String kOpenAiApiKey = ''; // Used for Whisper transcription
-
-// const String kOllamaHost = '192.168.100.60'; // Local machine running Ollama
 // const String kOllamaModel = 'qwen2:1.5b';
 
 const String kGeminiApiKey = '';
