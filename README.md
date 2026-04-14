@@ -155,7 +155,14 @@ Then load them in your app using [`flutter_dotenv`](https://pub.dev/packages/flu
 
 ## Screenshots
 
-> Coming soon.
+<div align="center">
+
+| Session Archive | AI Assistant | Record Session |
+|:---:|:---:|:---:|
+| <img src="screenshots/screen1.jpeg" width="220"/> | <img src="screenshots/screen2.jpeg" width="220"/> | <img src="screenshots/screen3.jpeg" width="220"/> |
+| Browse and manage all recorded sessions | Upload PDFs and ask questions via voice | One-tap recording up to 60 minutes |
+
+</div>
 
 ---
 
