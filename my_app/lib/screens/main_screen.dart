@@ -161,13 +161,6 @@ class _MainScreenState extends State<MainScreen> {
                 setState(() => _currentIndex = 0); 
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.settings_rounded, color: AppColors.textSecondary),
-              title: const Text('الإعدادات'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16.0),
               child: Divider(color: AppColors.textSecondary, thickness: 0.2),
