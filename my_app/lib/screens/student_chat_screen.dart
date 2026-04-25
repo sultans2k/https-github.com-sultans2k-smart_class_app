@@ -5,6 +5,8 @@ import '../models/chat_message.dart';
 import '../services/elevenlabs_service.dart';
 import '../services/gemini_service.dart';
 import '../widgets/waveform_visualizer.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 
 class StudentChatScreen extends StatefulWidget {
   final UserRole role;
@@ -165,14 +167,27 @@ class _ChatScreenState extends State<StudentChatScreen> {
           ),
         ],
       ),
-      leading: Padding(
+         leading: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 11.0),
-        child: CircleAvatar(
-          backgroundColor: Colors.white24,
-          child: Icon(
-            widget.role.icon,
-            color: Colors.white,
-            size: 22,
+        child: GestureDetector(
+          onTap: () {
+            // Fetch the currently logged-in user from Firebase
+            final currentUser = FirebaseAuth.instance.currentUser;
+            final email = currentUser?.email ?? 'لا يوجد بريد إلكتروني';
+
+            // Display the email to the user
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('الحساب الحالي: $email'),
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: AppColors.accent,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          },
+          child: CircleAvatar(
+            backgroundColor: Colors.white24,
+            child: Icon(widget.role.icon, color: Colors.white, size: 22),
           ),
         ),
       ),

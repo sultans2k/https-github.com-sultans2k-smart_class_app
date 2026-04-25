@@ -1,64 +1,100 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../constants.dart';
+import '../prompts/gemini_prompts.dart';
+import 'dart:async';
+
+class GeminiException implements Exception {
+  final String message;
+  final Object? cause;
+  GeminiException(this.message, {this.cause});
+
+  @override
+  String toString() => 'GeminiException: $message${cause != null ? ' — $cause' : ''}';
+}
 
 class GeminiService {
-   GenerativeModel _modelInit(String systemInstruction) {
+  static const int _maxContextChars = 12000;
+  static const Duration _timeout = Duration(seconds: 45);
+
+  GenerativeModel _buildModel(String systemInstruction) {
     return GenerativeModel(
-      model: 'gemini-2.5-flash', 
-      apiKey: kGeminiApiKey, 
+      model: 'gemini-2.5-flash',
+      apiKey: kGeminiApiKey,
       systemInstruction: Content.system(systemInstruction),
     );
   }
 
-  /// Chat with optional PDF context injected into the system prompt.
-  Future<String> chat(String userMessage, {String? pdfContext}) async {
+  String _truncate(String text, {int maxChars = _maxContextChars}) {
+    if (text.length <= maxChars) return text;
+    return '${text.substring(0, maxChars)}\n\n[... تم اقتطاع المحتوى لتجاوزه الحد المسموح ...]';
+  }
+
+  Future<String> chat(
+    String userMessage, {
+    String? pdfContext,
+    ChatSession? session,
+  }) async {
+    if (userMessage.trim().isEmpty) return 'الرسالة فارغة.';
+
     final systemPrompt = pdfContext != null
-        ? '''أنت مساعد تعليمي ذكي للمعلم. يمكنك شرح محتوى الدرس للطلاب بطريقة واضحة وبسيطة.
-لديك المستند التالي كمرجع للإجابة على الأسئلة:
-
-$pdfContext
-
-قواعد مهمة:
-- أجب دائماً بالعربية الفصيحة المحكية بشكل طبيعي
-- اشرح المفاهيم بأسلوب مبسط مناسب للطلاب
-- استند إلى محتوى المستند عند الإجابة
-- كن موجزاً ودقيقاً
-- لا تستخدم رموز التنسيق كالنجوم أو الشرطات'''
-        : '''أنت مساعد صوتي للمعلم داخل الفصل.
-أجب دائماً بالعربية الفصيحة بشكل طبيعي ومختصر ومباشر.
-لا تستخدم رموز التنسيق.''';
+        ? GeminiPrompts.chatWithContext(_truncate(pdfContext))
+        : GeminiPrompts.chatBasic;
 
     try {
-      final model = _modelInit(systemPrompt);
-      final response = await model.generateContent([Content.text(userMessage)]);
-      
+      if (session != null) {
+        // multi-turn: استخدم الجلسة الموجودة
+        final response = await session
+            .sendMessage(Content.text(userMessage))
+            .timeout(_timeout);
+        return response.text?.trim() ?? 'لم يتم إنشاء استجابة.';
+      }
+
+      // single-turn
+      final model = _buildModel(systemPrompt);
+      final response = await model
+          .generateContent([Content.text(userMessage)])
+          .timeout(_timeout);
       return response.text?.trim() ?? 'لم يتم إنشاء استجابة.';
+    } on TimeoutException {
+      throw GeminiException('انتهت مهلة الاتصال بـ Gemini.');
     } catch (e) {
-      throw Exception('Gemini Error: $e');
+      throw GeminiException('فشل طلب المحادثة', cause: e);
     }
   }
 
-  /// Summarize a class transcript.
-  Future<String> summarizeTranscript(String transcript) async {
+  /// Starts a persistent chat session (for multi-turn student Q&A).
+  ChatSession startSession({String? pdfContext}) {
+    final systemPrompt = pdfContext != null
+        ? GeminiPrompts.chatWithContext(_truncate(pdfContext))
+        : GeminiPrompts.chatBasic;
+    return _buildModel(systemPrompt).startChat();
+  }
+
+  /// Summarize transcript, optionally cross-referenced with curriculum PDF.
+  Future<String> summarizeTranscript(
+    String transcript, {
+    String? pdfContext,
+  }) async {
     if (transcript.trim().isEmpty) return 'لا يوجد نص للتلخيص.';
 
-    const systemPrompt =
-        'أنت مساعد تعليمي. ستتلقى نص تسجيل صوتي لحصة دراسية. '
-        'قم بإنشاء ملخص واضح ومنظم بالعربية يتضمن: '
-        '١) الموضوع الرئيسي، '
-        '٢) النقاط والمفاهيم الأساسية، '
-        '٣) أي أمثلة أو تمارين ذُكرت. '
-        'اكتب بأسلوب واضح دون رموز تنسيق.';
+    final systemPrompt = pdfContext != null
+        ? GeminiPrompts.summarizeWithContext
+        : GeminiPrompts.summarizeBasic;
+
+    final userContent = pdfContext != null
+        ? 'محتوى المنهج:\n${_truncate(pdfContext)}\n\n---\nنص الحصة:\n$transcript'
+        : 'لخص هذا النص:\n\n$transcript';
 
     try {
-      final model = _modelInit(systemPrompt);
-      final response = await model.generateContent([
-        Content.text('لخص هذا النص:\n\n$transcript')
-      ]);
-
+      final model = _buildModel(systemPrompt);
+      final response = await model
+          .generateContent([Content.text(userContent)])
+          .timeout(_timeout);
       return response.text?.trim() ?? 'لم يتم إنشاء ملخص.';
+    } on TimeoutException {
+      throw GeminiException('انتهت مهلة التلخيص.');
     } catch (e) {
-      throw Exception('Gemini Summarize Error: $e');
+      throw GeminiException('فشل طلب التلخيص', cause: e);
     }
   }
 }
