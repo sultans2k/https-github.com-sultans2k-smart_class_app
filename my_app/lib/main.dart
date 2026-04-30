@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:smart_class/screens/login_screen.dart';
+import './services/auth_wrapper.dart'; 
 import 'constants.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -59,7 +59,7 @@ class TeacherAssistantApp extends StatelessWidget {
       ),
       home: const Directionality(
         textDirection: TextDirection.rtl,
-        child: LoginScreen(),
+        child: AuthWrapper(), 
       ),
     );
   }

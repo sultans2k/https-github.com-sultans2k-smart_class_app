@@ -63,6 +63,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '154587843348',
     projectId: 'ai-class-c0f38',
     storageBucket: 'ai-class-c0f38.firebasestorage.app',
+    androidClientId: '154587843348-u7q7q50ca39ocg8sal03ag55936qdh0p.apps.googleusercontent.com',
     iosClientId: '154587843348-c4evlb0bodph6897cuvbpebetf4816a3.apps.googleusercontent.com',
     iosBundleId: 'com.example.myApp',
   );
@@ -73,6 +74,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '154587843348',
     projectId: 'ai-class-c0f38',
     storageBucket: 'ai-class-c0f38.firebasestorage.app',
+    androidClientId: '154587843348-u7q7q50ca39ocg8sal03ag55936qdh0p.apps.googleusercontent.com',
     iosClientId: '154587843348-c4evlb0bodph6897cuvbpebetf4816a3.apps.googleusercontent.com',
     iosBundleId: 'com.example.myApp',
   );

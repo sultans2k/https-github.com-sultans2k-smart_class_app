@@ -24,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
- // --- STRICT EMAIL LOGIN (NO REGISTRATION) ---
+  // --- STRICT EMAIL LOGIN (NO REGISTRATION) ---
   Future<void> _handleEmailLogin() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -38,10 +38,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // 1. Attempt to log in. This will throw an error if the account doesn't exist.
-      UserCredential credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      UserCredential credential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
 
       // 2. Verify they actually have a profile in your database
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
@@ -58,7 +56,6 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       await _routeUser(credential.user!.uid);
-
     } on FirebaseAuthException catch (e) {
       _handleAuthError(e);
     } catch (e) {
@@ -74,79 +71,138 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await GoogleSignIn.instance.initialize();
-      final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
-      
+      final GoogleSignInAccount? googleUser = await GoogleSignIn.instance
+          .authenticate();
+
       if (googleUser == null) {
         setState(() => _isLoading = false);
         return;
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(idToken: googleAuth.idToken);
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+      );
 
-      // 1. Firebase automatically signs them in (and creates an Auth account if new)
-      UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-      
-      // 2. Check if this user actually exists in your Firestore database
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+      UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithCredential(credential);
+      final uid = userCredential.user!.uid;
+
+      // Check if this user exists in your Firestore database
+      DocumentReference userDocRef = FirebaseFirestore.instance
           .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
+          .doc(uid);
+      DocumentSnapshot userDoc = await userDocRef.get();
 
-      // 3. If they don't exist, destroy the session and delete the unauthorized account
+      // IF THEY DO NOT EXIST: Create their profile instead of deleting them
       if (!userDoc.exists) {
-        await userCredential.user!.delete(); // Deletes the auto-generated Firebase Auth account
-        await GoogleSignIn.instance.signOut(); // Clears the Google cache on the phone
-        
-        _showError('عذراً، هذا البريد الإلكتروني غير مصرح له بالدخول.');
-        setState(() => _isLoading = false);
-        return;
+        await userDocRef.set({
+          'name': userCredential.user!.displayName ?? 'مستخدم جديد',
+          'email': userCredential.user!.email,
+          'role': 'student', // Assigning default role
+          'createdAt': FieldValue.serverTimestamp(),
+        });
       }
 
-      // 4. If they do exist, route them normally
-      await _routeUser(userCredential.user!.uid);
-
+      // Route them normally
+      await _routeUser(uid);
     } catch (e) {
+      print("Google Auth Error: $e"); // Helpful for debugging in terminal
       _showError('حدث خطأ أثناء التحقق من حساب Google');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  Future<void> _handleEmailSignUp() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
-  // --- SHARED ROUTING LOGIC ---
-  Future<void> _routeUser(String uid) async {
-    DocumentSnapshot userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-
-    if (!userDoc.exists) {
-      _showError('بيانات المستخدم غير موجودة في قاعدة البيانات');
-      await FirebaseAuth.instance.signOut();
+    if (email.isEmpty || password.isEmpty) {
+      _showError('يرجى إدخال البريد الإلكتروني وكلمة المرور');
       return;
     }
 
-    // Extract the data safely
-    final data = userDoc.data() as Map<String, dynamic>;
-    String roleString = data['role'] ?? 'student';
-    UserRole role = roleString == 'teacher'
-        ? UserRole.teacher
-        : UserRole.student;
+    setState(() => _isLoading = true);
 
-    // Safely extract the name, falling back to a default if the field is missing
-    String userName = data.containsKey('name') ? data['name'] : 'مستخدم';
+    try {
+      // 1. Create the brand new account in Firebase Auth
+      UserCredential credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
 
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MainScreen(
-            role: role,
-            userName: userName, // Pass the new variable here
+      final uid = credential.user!.uid;
+
+      // 2. Create their initial profile in the Firestore database
+      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+        'name':
+            'مستخدم جديد', // You can add a Name TextField later to capture this
+        'email': email,
+        'role': 'student', // Default role
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // 3. Route them to the app
+      await _routeUser(uid);
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'weak-password') {
+        _showError('كلمة المرور ضعيفة جداً');
+      } else if (e.code == 'email-already-in-use') {
+        _showError('هذا الحساب موجود بالفعل، قم بتسجيل الدخول');
+      } else {
+        _handleAuthError(e);
+      }
+    } catch (e) {
+      _showError('حدث خطأ في إنشاء الحساب');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // --- SHARED ROUTING LOGIC ---
+  Future<void> _routeUser(String uid) async {
+    try {
+      // Step 1: Prove login worked and we are fetching data
+      _showError('Login Success: Fetching database profile...');
+
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (!userDoc.exists) {
+        _showError('Error: Profile not found in database.');
+        await FirebaseAuth.instance.signOut();
+        return;
+      }
+
+      final data = userDoc.data() as Map<String, dynamic>?;
+
+      if (data == null) {
+        _showError('Error: Profile data is null.');
+        return;
+      }
+
+      String roleString = data['role'] ?? 'student';
+      UserRole role = roleString == 'teacher'
+          ? UserRole.teacher
+          : UserRole.student;
+      String userName = data.containsKey('name') ? data['name'] : 'مستخدم';
+
+      // Step 2: Prove data was fetched and we are routing
+      _showError('Data Fetched: Opening MainScreen...');
+
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MainScreen(role: role, userName: userName),
           ),
-        ),
-      );
+        );
+      }
+    } catch (e) {
+      // If the data parsing or routing fails, show the exact error
+      _showError('CRASH IN ROUTING: $e');
     }
   }
 
@@ -164,6 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showError(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: AppColors.recording),
     );
@@ -246,6 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   elevation: 0,
                 ),
+
                 child: _isLoading
                     ? const SizedBox(
                         height: 20,
@@ -263,7 +321,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
               ),
-
+              
               const SizedBox(height: 24),
               const Row(
                 children: [
