@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import './services/auth_wrapper.dart';
+import 'package:smart_class/screens/login_screen.dart';
 import 'constants.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -26,10 +26,14 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    debugPrint('Firebase already initialized: $e');
   }
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -37,7 +41,7 @@ void main() async {
   await FirebaseMessaging.instance.requestPermission();
 
   final token = await FirebaseMessaging.instance.getToken();
-  debugPrint('FCM TOKEN: $token');
+  debugPrint('🔥 FCM TOKEN: $token');
 
   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
     debugPrint('Notification Title: ${message.notification?.title}');
@@ -82,7 +86,7 @@ class TeacherAssistantApp extends StatelessWidget {
       ),
       home: const Directionality(
         textDirection: TextDirection.rtl,
-        child: AuthWrapper(),
+        child: LoginScreen(),
       ),
     );
   }
