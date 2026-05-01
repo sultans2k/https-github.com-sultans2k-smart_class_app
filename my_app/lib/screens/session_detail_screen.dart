@@ -57,7 +57,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen>
         bottom: TabBar(
           controller: _tabCtrl,
           indicatorColor: AppColors.accent,
-          indicatorWeight: 3,
+          indicatorWeight: 4,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white60,
           tabs: const [
